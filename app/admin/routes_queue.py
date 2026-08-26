@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Form, Request, Response
 
@@ -22,41 +21,26 @@ log = logging.getLogger("ai-gateway")
 
 router = APIRouter(prefix="/admin/queue", tags=["admin-queue"])
 
-# 队列缓存（短期、仅 viewer/admin 会话）
-_QUEUE_CACHE: dict[tuple[str, str], tuple[datetime, list[dict]]] = {}
-_CACHE_TTL = timedelta(minutes=10)
 VALID_SCENES = ("register", "note", "song", "language")
 
 
 async def _fetch_pending(scene: str, limit: int = 30) -> list[dict]:
-    """从主仓拉取 pending（带 LRU + TTL 缓存）。"""
-    key = (scene, request_user_key())
-    now = datetime.utcnow()
-    cached = _QUEUE_CACHE.get(key)
-    if cached and now - cached[0] < _CACHE_TTL:
-        return cached[1]
-
+    """实时拉取主仓 pending。SPEC [S5]：原文仅请求内窗口展示，不做跨请求缓存。"""
     client = VoiceHubClient()
     try:
-        items = await client.fetch_pending(scene, limit=limit)
+        return await client.fetch_pending(scene, limit=limit)
     except Exception as e:
         log.warning("拉取待审失败：%s", e)
-        items = []
+        return []
     finally:
         await client.close()
-
-    _QUEUE_CACHE[key] = (now, items)
-    return items
-
-
-def request_user_key() -> str:
-    """每个请求一个 key（基于线程 id 简化：用 module global 缓存 + 当前 process id）。"""
-    return "default"
 
 
 @router.get("")
 @login_required
 async def queue_page(request: Request, scene: str = "register"):
+    if scene not in VALID_SCENES:
+        scene = "register"
     items = await _fetch_pending(scene, limit=30)
     # viewer 仅看脱敏视图；reviewer/admin 看原文（队列场景原文需人工判断）
     user = request.state.user
@@ -136,6 +120,5 @@ async def review_action(
     finally:
         session.close()
 
-    # 写回成功后清除该场景缓存
-    _QUEUE_CACHE.pop((scene, "default"), None)
+    # 写回成功后下次进入队列页自然反映最新 pending（无跨请求缓存）
     return Response(status_code=303, headers={"Location": f"/admin/queue?scene={scene}"})

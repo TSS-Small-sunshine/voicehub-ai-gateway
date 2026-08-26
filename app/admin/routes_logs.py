@@ -23,6 +23,7 @@ async def logs_page(
     scene: str | None = None,
     decision: str | None = None,
     q: str | None = None,
+    model_f: str | None = None,
     limit: int = 50,
 ):
     session = ReviewSession()
@@ -32,6 +33,12 @@ async def logs_page(
             query = query.filter(AiReviewLog.scene == scene)
         if decision and decision != "all":
             query = query.filter(AiReviewLog.decision == decision)
+        if model_f:
+            query = query.filter(AiReviewLog.model.contains(model_f.strip()[:64]))
+        if q:
+            from sqlalchemy import or_
+            like = f"%{q.strip()[:100]}%"
+            query = query.filter(or_(AiReviewLog.reason.like(like), AiReviewLog.payload_json.like(like)))
         rows = query.order_by(desc(AiReviewLog.id)).limit(min(max(limit, 1), 500)).all()
         # viewer 仅脱敏
         user = request.state.user
@@ -81,6 +88,7 @@ async def logs_page(
         decisions=["all", "APPROVE", "REJECT", "REVIEW"],
         scene_f=scene or "all",
         decision_f=decision or "all",
+        model_f=model_f or "",
         q=q or "",
         show_raw=show_raw,
     )
@@ -92,11 +100,17 @@ async def logs_export(request: Request):
     session = ReviewSession()
     try:
         rows = session.query(AiReviewLog).order_by(desc(AiReviewLog.id)).limit(2000).all()
+        is_admin = request.state.user.role == "admin"
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(["id", "scene", "target_id", "decision", "source", "model", "reason", "duration_ms", "created_at"])
         for r in rows:
-            w.writerow([r.id, r.scene, r.target_id, r.decision, r.source or "", r.model or "", (r.reason or "")[:500], r.duration_ms or 0, r.created_at.isoformat() if r.created_at else ""])
+            reason = (r.reason or "")[:500]
+            if not is_admin:
+                # viewer 导出同样脱敏，防旁路
+                from ..mask import mask_pii
+                reason = mask_pii(reason)
+            w.writerow([r.id, r.scene, r.target_id, r.decision, r.source or "", r.model or "", reason, r.duration_ms or 0, r.created_at.isoformat() if r.created_at else ""])
         buf.seek(0)
     finally:
         session.close()

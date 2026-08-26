@@ -69,3 +69,41 @@ class L1RulesReviewer:
                     "hit": name,
                 }
         return None
+
+
+# ---------------- 进程级单例（worker 与管理台共享；DB 规则热生效的唯一载体） ----------------
+_runtime: L1RulesReviewer | None = None
+
+
+def get_runtime() -> L1RulesReviewer:
+    global _runtime
+    if _runtime is None:
+        _runtime = L1RulesReviewer()
+    return _runtime
+
+
+def reload_runtime() -> L1RulesReviewer:
+    """重建实例：内置 + extra_patterns.json + gw_rules 表中启用的自定义规则。
+
+    DB 读取失败（如测试库未建表）静默跳过仅用内置。调用方拿到同一份
+    单例（进程内所有消费方 —— 管理台预览与轮询 worker —— 行为一致）。
+    """
+    global _runtime
+    rt = L1RulesReviewer()
+    try:
+        from ..db import GatewaySession, GwRule
+
+        session = GatewaySession()
+        try:
+            for r in session.query(GwRule).filter(GwRule.enabled.is_(True)).all():
+                try:
+                    skip = set(json.loads(r.skip_scenes_json or "[]"))
+                except Exception:
+                    skip = set()
+                rt._patterns.append((r.name, re.compile(r.pattern), r.label, skip))
+        finally:
+            session.close()
+    except Exception:
+        pass
+    _runtime = rt
+    return rt

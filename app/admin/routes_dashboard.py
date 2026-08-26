@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Request
 from sqlalchemy import func
 
-from ..db import AiReviewLog, ReviewSession
+from ..db import AiReviewLog, GatewaySession, ReviewSession
 from .decorators import login_required
 from .templates import render_request
 
@@ -46,6 +46,14 @@ async def dashboard(request: Request):
         durations = sorted(d for _, d in llm_rows if d is not None)
         p50 = durations[len(durations) // 2] if durations else 0
 
+        def _p95(seq: list[int]) -> int:
+            if not seq:
+                return 0
+            k = min(len(seq) - 1, int(round(0.95 * (len(seq) - 1))))
+            return seq[k]
+
+        p95 = _p95(durations)
+
         # 最近 10 条
         recent = (
             session.query(AiReviewLog)
@@ -67,6 +75,23 @@ async def dashboard(request: Request):
     finally:
         session.close()
 
+    # 抽查摘要（SPEC [S8]：结果进看板；读失败不阻断看板）
+    spot_total = spot_flagged = 0
+    try:
+        from ..db import GwSpotcheckLog
+        gsession = GatewaySession()
+        try:
+            spot_total = gsession.query(func.count(GwSpotcheckLog.id)).scalar() or 0
+            spot_flagged = (
+                gsession.query(func.count(GwSpotcheckLog.id))
+                .filter(GwSpotcheckLog.recheck_decision == "REJECT")
+                .scalar() or 0
+            )
+        finally:
+            gsession.close()
+    except Exception:
+        pass
+
     return render_request(
         request,
         "dashboard.html",
@@ -75,5 +100,8 @@ async def dashboard(request: Request):
         total_llm=total_llm,
         success_rate=round(success_rate, 1),
         p50=p50,
+        p95=p95,
+        spot_total=spot_total,
+        spot_flagged=spot_flagged,
         recent=recent_items,
     )

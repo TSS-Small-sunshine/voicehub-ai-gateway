@@ -20,7 +20,8 @@
 <tr><th>指标</th><th>数值</th></tr>
 <tr><td>调用次数</td><td>{{ total_llm }}</td></tr>
 <tr><td>成功率</td><td>{{ success_rate }}%</td></tr>
-<tr><td>p50 延迟</td><td>{{ p50 }} ms</td></tr>
+<tr><td>p50 / p95 延迟</td><td>{{ p50 }} / {{ p95 }} ms</td></tr>
+<tr><td>抽查累计</td><td>{{ spot_total }}{% if spot_flagged %} · <span class="tag reject">待人工 {{ spot_flagged }}</span>{% endif %}</td></tr>
 </table>
 </div>
 <div class="card">

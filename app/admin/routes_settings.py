@@ -27,6 +27,7 @@ async def settings_page(request: Request):
         values=get_settings(),
         sources=setting_sources(),
         saved=request.query_params.get("saved") == "1",
+        err=(request.query_params.get("err") or "")[:400],
     )
 
 
@@ -39,6 +40,7 @@ async def settings_save(request: Request):
     before = get_settings()
 
     changes: dict[str, tuple[str, str]] = {}
+    invalid: list[str] = []
     for key in DEFAULTS:
         if key in _BOOL_KEYS:
             raw = "true" if str(form.get(key, "")).strip() else "false"
@@ -49,7 +51,11 @@ async def settings_save(request: Request):
             if "\n" in raw or len(raw) > 200:
                 continue  # 超长/多行输入直接忽略
         if raw != before[key]:
-            set_setting(key, raw)
+            try:
+                set_setting(key, raw)
+            except ValueError as e:
+                invalid.append(f"{key}: {e}")
+                continue
             changes[key] = (before[key], raw)
 
     # 审计留痕
@@ -69,4 +75,7 @@ async def settings_save(request: Request):
         finally:
             session.close()
 
+    from urllib.parse import quote
+    if invalid:
+        return Response(status_code=303, headers={"Location": "/admin/settings?err=" + quote("；".join(invalid)[:300])})
     return Response(status_code=303, headers={"Location": "/admin/settings?saved=1"})

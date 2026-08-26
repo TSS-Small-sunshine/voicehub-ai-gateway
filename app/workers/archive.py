@@ -57,9 +57,13 @@ def archive_now(dest_dir: str | None = None, keep: int | None = None) -> list[st
         created.append(str(target))
         log.info("归档完成：%s → %s", src, target)
 
-    # 按库前缀分组各保留 N 份
+    # 按库前缀分组各保留 N 份（仅识别本任务产出的 {stem}_{时间戳}.db，防误删外部放入的同名库）
+    import re as _re
+    _ours = _re.compile(r"^[\w-]+_\d{8}T\d{6}Z\.db$")
     by_stem: dict[str, list[Path]] = {}
     for f in dest.glob("*.db"):
+        if not _ours.match(f.name):
+            continue
         stem = f.name.rsplit("_", 1)[0]
         by_stem.setdefault(stem, []).append(f)
     for stem, files in by_stem.items():

@@ -10,9 +10,11 @@ import time
 
 from ..config import settings
 from ..db import AiReviewLog, SessionLocal, init_db
+from ..mask import mask_free_text_by_scene, mask_payload_json, mask_pii
 from ..prompts import NOTE_SYSTEM_PROMPT, REGISTER_SYSTEM_PROMPT, SONG_SYSTEM_PROMPT
 from ..reviewers import L2LlmReviewer, L1RulesReviewer, L3SearchReviewer
 from ..reviewers.language_detector import LanguageDetector
+from ..reviewers.l1_rules import get_runtime as get_l1_runtime
 from ..settings import get_settings, parse_bool
 from ..voicehub_client import VoiceHubClient
 
@@ -81,10 +83,10 @@ async def review_item(scene: str, item: dict, l1: L1RulesReviewer, l2: L2LlmRevi
     start = time.monotonic()
 
     if item_scene == "language":
-        # 语种专用：平台元数据 → LLM → 搜索
+        # 语种专用：平台元数据 → LLM → 搜索（标题/歌手出站前脱敏）
         result = await lang.detect(
-            title=str(payload.get("title", "")),
-            artist=str(payload.get("artist", "")),
+            title=mask_pii(str(payload.get("title", ""))),
+            artist=mask_pii(str(payload.get("artist", ""))),
             platform_language=cfg_platform_language(payload),
         )
         duration_ms = int((time.monotonic() - start) * 1000)
@@ -100,12 +102,14 @@ async def review_item(scene: str, item: dict, l1: L1RulesReviewer, l2: L2LlmRevi
     text = build_review_text(item_scene, payload)
 
     # L1（注册只扫自由文本；scene 传参与规则的 skip_scenes 匹配）
+    # L1 为纯本地判定，用原文保证规则（手机/QQ/URL 等正则）不因脱敏失明；
     l1_result = await l1.review(build_l1_text(item_scene, payload), item_scene)
     if l1_result:
         return _result(item_scene, target_id, l1_result["decision"], l1_result["reason"], 1.0, l1_result["source"], int((time.monotonic() - start) * 1000), payload)
 
-    # L2（注册场景带专用 prompt）
-    result = await l2.review(build_system_prompt(item_scene), text)
+    # L2（注册场景带专用 prompt）——出站文本必经 mask（SPEC [S6] 强制脱敏，数据不出校）
+    outbound = mask_free_text_by_scene(item_scene, payload) or text
+    result = await l2.review(build_system_prompt(item_scene), outbound)
     duration_ms = int((time.monotonic() - start) * 1000)
 
     # 注册备注实名比对（SPEC [S12] 一期）：L2 APPROVE 后校验备注学号；
@@ -128,14 +132,21 @@ def cfg_platform_language(payload: dict) -> str | None:
 
 
 def apply_quality_gate(result: dict, cfg: dict) -> dict:
-    """置信度门槛：APPROVE 且 confidence 低于阈值 → REVIEW 转人工。"""
+    """置信度门槛：APPROVE 且 confidence 低于阈值 → REVIEW 转人工。
+
+    阈值解析失败/越界 → 跳过门控并告警（写入已被 set_setting 强校验拦截，
+    此处仅为 env 直配等旁路兜底）。
+    """
     if result.get("decision") != "APPROVE":
         return result
     conf = result.get("confidence")
     try:
         threshold = float(cfg.get("llm_confidence_threshold") or 0)
+        if not 0 < threshold <= 1:
+            raise ValueError(threshold)
     except (TypeError, ValueError):
-        threshold = 0.0
+        log.warning("llm_confidence_threshold 配置非法（%r），质量门跳过", cfg.get("llm_confidence_threshold"))
+        return result
     if isinstance(conf, (int, float)) and conf < threshold:
         return {
             **result,
@@ -197,7 +208,8 @@ async def poll_once(client: VoiceHubClient, l1, l2, lang, state: dict | None = N
                     "confidence": None,
                     "source": "degraded",
                     "durationMs": 0,
-                    "payloadJson": json.dumps(item.get("payload") or {}, ensure_ascii=False),
+                    # SPEC [S6]：原文不落盘，异常降级路径同样过 mask
+                    "payloadJson": mask_payload_json(json.dumps(item.get("payload") or {}, ensure_ascii=False)),
                 }
             result = apply_quality_gate(result, cfg)
             _persist_log(result)
@@ -234,7 +246,8 @@ def _persist_log(result: dict) -> None:
                     model=result.get("source"),
                     source=result.get("source"),
                     duration_ms=result.get("durationMs"),
-                    payload_json=(result.get("payloadJson") or "")[:4000],
+                    # SPEC [S6]：仅落脱敏文本，原文不落盘
+                    payload_json=mask_payload_json(result.get("payloadJson"))[:4000],
                 )
             )
             session.commit()
@@ -251,7 +264,8 @@ async def run_poll_loop() -> None:
         log.warning("未配置 VOICEHUB_API_KEY/BASE_URL，轮询停用")
         return
     client = VoiceHubClient()
-    l1 = L1RulesReviewer()
+    # 与管理台共享同一 L1 单例：规则 CRUD/重载即热生效（绝不允许双实例假连通）
+    l1 = get_l1_runtime()
     l2 = L2LlmReviewer()
     if not settings.llm_api_key:
         log.warning("未配置 LLM Key：仅 L1 规则生效，其余判定恒 REVIEW")

@@ -1,0 +1,21 @@
+# VoiceHub AI Gateway — Caddy 唯一入口（TLS 终止）
+#
+# 默认：无域名自签证书（内网 IP 访问可用，浏览器需信任一次）
+# 有域名：设环境变量 SITE_ADDR=your.domain.com 且 443 可公网访问，
+#         Caddy 自动申请/续期 Let's Encrypt 证书。
+# 全部 HTTP → HTTPS 由 Caddy 自动处理（auto_https 默认开启 HSTS 于 TLS 站点）。
+
+{$SITE_ADDR::443} {
+	encode gzip
+
+	reverse_proxy ai-gateway:8000 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=15552000;"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

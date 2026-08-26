@@ -19,6 +19,34 @@ IDLE_LIFETIME = timedelta(minutes=30)
 LOCK_DURATION = timedelta(minutes=15)
 MAX_FAILED = 5
 
+# IP 维度滑动限流（进程内存；单容器部署形态足够）：15 分钟窗口内 ≥10 次失败即封禁
+IP_WINDOW = timedelta(minutes=15)
+IP_MAX_FAILURES = 10
+_ip_failures: dict[str, list[datetime]] = {}
+
+
+def ip_blocked(ip: str | None) -> bool:
+    """该 IP 近期失败过多 → 登录入口直接拒绝（不触碰账号状态）。"""
+    if not ip:
+        return False
+    cutoff = datetime.utcnow() - IP_WINDOW
+    recent = [t for t in _ip_failures.get(ip, []) if t > cutoff]
+    return len(recent) >= IP_MAX_FAILURES
+
+
+def record_ip_failure(ip: str | None) -> None:
+    if not ip:
+        return
+    now = datetime.utcnow()
+    bucket = [t for t in _ip_failures.get(ip, []) if t > now - IP_WINDOW]
+    bucket.append(now)
+    _ip_failures[ip] = bucket
+
+
+def clear_ip_failures(ip: str | None) -> None:
+    if ip:
+        _ip_failures.pop(ip, None)
+
 
 def create_user(session: Session, username: str, password: str, role: str = "viewer", must_change_password: bool = False) -> GwUser:
     user = GwUser(

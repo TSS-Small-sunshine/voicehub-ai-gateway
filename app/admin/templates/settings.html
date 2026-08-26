@@ -2,6 +2,7 @@
 {% block title %}运行期设置 · 管理台{% endblock %}
 {% block content %}
 {% if saved %}<div class="flash">已保存。轮询等后台任务每周期重读，保存即热生效，无需重启。</div>{% endif %}
+{% if err %}<div class="flash error">部分项未保存：{{ err }}</div>{% endif %}
 <form method="post" action="/admin/settings/save">
 <input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
 {% for group_name, items in groups %}

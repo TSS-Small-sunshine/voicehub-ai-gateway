@@ -66,6 +66,13 @@ GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     ]),
 ]
 
+# 数值键：set_setting 强校验（防坏阈值静默关闭质量门等兜底）
+NUMERIC_KEYS = {
+    "poll_interval_seconds", "poll_batch_size", "review_cooldown_seconds",
+    "llm_confidence_threshold", "spotcheck_interval_hours", "spotcheck_batch_size",
+    "archive_interval_hours", "archive_keep", "log_retention_days",
+}
+
 
 def _db_values() -> dict[str, str]:
     from .db import GatewaySession, GwSetting
@@ -104,11 +111,21 @@ def get_settings() -> dict[str, str]:
 
 
 def set_setting(key: str, value: str) -> None:
-    """写 DB；value 为空串则删除该行（恢复 env/默认）。调用方负责权限与审计。"""
+    """写 DB；value 为空串则删除该行（恢复 env/默认）。调用方负责权限与审计。
+
+    数值键（NUMERIC_KEYS）非法值抛 ValueError —— 坏配置必须在写入即被拦截，
+    而不是在质量门/轮询处静默降级。
+    """
     if key not in DEFAULTS:
         raise KeyError(key)
     from .db import GatewaySession, GwSetting
     v = (value or "").strip()
+    if v and key in NUMERIC_KEYS:
+        f = float(v)  # ValueError → 上层提示
+        if key == "llm_confidence_threshold" and not 0 < f <= 1:
+            raise ValueError("llm_confidence_threshold 取值应为 (0, 1]")
+        if key != "llm_confidence_threshold" and f <= 0:
+            raise ValueError(f"{key} 必须为正数")
     session = GatewaySession()
     try:
         row = session.query(GwSetting).filter_by(key=key).one_or_none()

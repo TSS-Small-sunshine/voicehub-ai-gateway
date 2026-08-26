@@ -9,5 +9,15 @@ sqlalchemy==2.0.35
 aiosqlite==0.20.0
 structlog==24.4.0
 tavily-python==0.5.0
+
+# ---- Web 管理台（A 阶段引入；此前仅存在于开发 venv，Docker 构建必需）----
+argon2-cffi==23.1.0        # 密码哈希（app/security.py）
+jinja2==3.1.4              # 管理台模板渲染
+itsdangerous==2.2.0        # CSRF 签名工具（security.csrf_sign/verify）
+cryptography==43.0.1       # Fernet 加密 API Key（app/security.py）
+pyotp==2.9.0               # 可选 TOTP 2FA
+python-multipart==0.0.12   # FastAPI 表单/文件上传解析（登录/名册 CSV）
+
+# ---- 测试 ----
 pytest==8.3.3
 pytest-asyncio==0.24.0

@@ -13,6 +13,8 @@
 <select name="decision">
 {% for d in decisions %}<option value="{{ d }}" {% if decision_f == d %}selected{% endif %}>{{ d }}</option>{% endfor %}
 </select></div>
+<div><label>模型包含</label><input type="text" name="model_f" value="{{ model_f }}" placeholder="deepseek / mimo…"></div>
+<div><label>关键词（理由/payload）</label><input type="text" name="q" value="{{ q }}"></div>
 </div>
 <label>条数</label><input type="number" name="limit" value="50" min="1" max="500">
 <button class="btn primary" type="submit">查询</button>

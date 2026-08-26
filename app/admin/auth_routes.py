@@ -6,12 +6,15 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response
 from ..auth import (
     authenticate,
     change_password,
+    clear_ip_failures,
     create_session,
+    ip_blocked,
+    record_ip_failure,
     revoke_session,
     validate_session,
 )
 from ..db import GatewaySession, GwAuditLog
-from .decorators import login_required
+from .decorators import csrf_protect, login_required
 from .templates import render, render_request
 
 router = APIRouter(prefix="/admin", tags=["admin-auth"])
@@ -49,13 +52,18 @@ async def login_submit(
     password: str = Form(""),
 ):
     ip = request.client.host if request.client else None
+    if ip_blocked(ip):
+        # IP 维度限流：先于账号校验，不泄露账号是否存在
+        return render_request(request, "login.html", error="尝试过于频繁，请稍后再试", username=username)
     session = GatewaySession()
     try:
         user = authenticate(session, username, password, ip)
         if not user:
+            record_ip_failure(ip)
             session.add(GwAuditLog(actor=username or "(unknown)", action="login_failed", ip=ip))
             session.commit()
             return render_request(request, "login.html", error="账号或密码错误", username=username)
+        clear_ip_failures(ip)
         token, csrf = create_session(session, user.id, ip, request.headers.get("user-agent", "")[:256])
         session.add(GwAuditLog(actor=user.username, action="login", ip=ip))
         session.commit()
@@ -99,6 +107,7 @@ async def change_password_submit(
     new_password: str = Form(""),
     confirm: str = Form(""),
 ):
+    await csrf_protect(request)
     from ..auth import verify_password
     user = request.state.user
     if not verify_password(old_password, user.password_hash):

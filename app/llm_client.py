@@ -1,6 +1,7 @@
 """VoiceHub AI Gateway — 供应商调用（含重试 / 熔断 / 主备切换）。"""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -91,7 +92,8 @@ async def _try_provider(provider, system_prompt: str, user_text: str) -> Optiona
             except Exception as e:
                 last_err = e
                 if attempt < 2:
-                    time.sleep(delay)
+                    # 异步上下文禁用阻塞 sleep：会卡死同进程 FastAPI event loop
+                    await asyncio.sleep(delay)
                     delay *= 2
         log.warning("供应商 %s 重试 3 次仍失败：%s", provider.name, last_err)
         return None

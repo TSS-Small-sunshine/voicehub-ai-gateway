@@ -2,10 +2,38 @@ services:
   ai-gateway:
     build: .
     container_name: voicehub-ai-gateway
-    ports:
-      - "8000:8000"
+    # 应用只监听容器网络（不暴露裸端口），由 caddy 作唯一 TLS 入口
+    expose:
+      - "8000"
     env_file:
       - .env
     volumes:
       - ./data:/app/data
-    restart: unless-stopped
+    restart: always
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: voicehub-caddy
+    ports:
+      - "80:80"     # HTTP→HTTPS 跳转与 ACME 验证
+      - "443:443"
+    environment:
+      - SITE_ADDR=${SITE_ADDR:-:443}   # 有域名时在 .env 设 SITE_ADDR=your.domain.com
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      ai-gateway:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:

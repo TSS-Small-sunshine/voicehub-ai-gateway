@@ -60,6 +60,21 @@ async def spotcheck_run(request: Request):
 
     if not parse_bool(str(get_settings().get("spotcheck_enabled") or "")):
         return Response(status_code=303, headers={"Location": "/admin/spotcheck?err=" + quote("抽查未启用，请先在设置页开启")})
+
+    # 操作审计（触发即留痕）
+    from ..db import GatewaySession, GwAuditLog
+    session = GatewaySession()
+    try:
+        session.add(GwAuditLog(
+            actor=request.state.user.username,
+            action="spotcheck_run",
+            target="manual_batch=10",
+            ip=request.client.host if request.client else None,
+        ))
+        session.commit()
+    finally:
+        session.close()
+
     from ..workers.spotcheck import run_spotcheck_once
     checked = await run_spotcheck_once(limit=10)
     return Response(status_code=303, headers={"Location": "/admin/spotcheck?msg=" + quote(f"本轮复核 {checked} 条")})
