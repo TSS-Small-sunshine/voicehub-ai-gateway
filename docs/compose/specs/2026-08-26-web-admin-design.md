@@ -76,6 +76,11 @@ voicehub-ai-gateway 当前仅有轮询 worker + /health，无任何管理入口�
 - **统一 OpenAI 兼容对接**：DeepSeek / GLM（智谱）/ Kimi（月之暗面）/ 通义千问（阿里）/ MiniMax / 小米 MiMo / 硅基流动等全部 OpenAI 兼容，`{base_url, api_key, model}` 三元组即可接入；`l2_llm.py` 保持 AsyncOpenAI 统一调用，无需按供应商分叉
 - `gw_providers` 表：预设模板（内置上述厂商的默认 base_url/model 清单）+ 自定义条目；字段：名称、base_url、model、api_key（Fernet 加密）、优先级/启用、超时、max_tokens；管理台下拉即切换默认供应商，热生效
 - **两种密钥注入模式**：① env 注入（`LLM_API_KEY` 等，最安全，校方 IT 习惯）；② 管理台配置（加密落库，便捷切换）；两者并存，env 优先
+- **本地 CPU 推理（Ollama / llama.cpp，数据不出校的现成路径）**：校方机器为纯 CPU 环境（可能为兆芯 KX-6780A / KX-7000，x86-64 + AVX2、无 GPU）时，以 Ollama 部署本地模型，其 OpenAI 兼容端点（`http://<内网主机>:11434/v1`）在网关侧**零改动**接入（仍是普通供应商条目）
+  - 模型档位（以校方实际机器基准测试为准）：Qwen2.5-0.5B/1.5B/3B-instruct、Llama3.2-1B/3B、DeepSeek-R1-Distill 1.5B 等 **Q4_K_M 量化**；3B 级供日常审核，7B 级慢速备选；建议内存 ≥16GB，内存 ≤8GB 时用 1.5B 级
+  - 本地调优档：LLM 超时放宽（60–120s，默认 5s 对小模型不够）、轮询批大小调小（3–5）、轮询间隔调大（60–120s），配合 REVIEW 冷却与场景收敛防积压
+  - 可靠性：小模型 JSON 输出不稳 → 保留现有 JSON 加固（剥离 ```json 包裹）与「仅输出 JSON」提示，解析失败一律 REVIEW 兜底
+  - 数据不出校：本地 Ollama + 自托管 SearXNG 时**全链路数据零出校**，且不依赖公网 LLM（校方无外网也可运行）
 - 非 OpenAI 兼容供应商（若有）预留 adapter 接口（`providers/` 目录），当前不实现
 
 ## [S8] 定期抽查机制（备注风险评估 + 抽样复审）
