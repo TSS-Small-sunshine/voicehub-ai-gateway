@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # 轮询
     poll_interval_seconds: int = 30
     poll_batch_size: int = 20
+    # 轮询场景（逗号分隔；song/language 需主仓 Phase 3 状态机支持后再开）
+    review_scenes: str = "register,note"
+    # REVIEW 冷却（秒）：冷却期内同一待审项不重审，防无限调用 LLM
+    review_cooldown_seconds: int = 300
 
     # 数据库（审核日志）
     database_url: str = "sqlite:///./data/ai_review.db"

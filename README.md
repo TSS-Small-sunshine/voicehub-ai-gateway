@@ -18,8 +18,8 @@
 │    pending-list   (GET)  │  ← 拉待审（含 AI 权限） │  │  L1 规则引擎         │  │
 │    result          (POST)│  ← 写回结果            │  │  L2 LLM 判定         │  │
 │                         │                          │  │  L3 搜索（可选）     │  │
-│  注册/歌曲/留言 pending  │  ──── webhook ────→  │  └────────────────────┘  │
-│    触发器                │   新增 pending 通知     │  审核日志 SQLite/PG       │
+│  注册/歌曲/留言 pending  │  （预留）webhook 即时通知  │  └────────────────────┘  │
+│    触发器                │   当前实现为轮询          │  审核日志 SQLite/PG       │
 └─────────────────────────┘                          └──────────────────────────┘
 ```
 
@@ -29,7 +29,7 @@
 |---|---|---|---|
 | L1 | 关键词黑名单 / 正则（手机号/QQ/微信号/URL/引流话术） | 零 | 本地规则文件 `app/rules/` |
 | L2 | LLM 结构化判定 `{decision, reason, confidence}` | 低 | OpenAI 兼容 LLM（DeepSeek/GLM/Kimi/通义千问…） |
-| L3 | 联网搜索（仅语种 L2 低置信时触发） | 中 | Tavily / 自托管 SearXNG |
+| L3 | 联网搜索（仅语种 L2 低置信时触发） | 中 | Tavily（SearXNG 预留） |
 
 **默认兜底**：任何异常 → REVIEW（保持 pending 转人工）。**绝不因网关故障卡死业务**。
 
@@ -84,7 +84,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | `LLM_API_KEY` | ✅ | OpenAI 兼容接口 Key（DeepSeek/GLM/Kimi/通义千问） |
 | `LLM_BASE_URL` | ✅ | 如 `https://api.deepseek.com/v1` |
 | `LLM_MODEL` | ✅ | 如 `deepseek-chat` |
+| `LLM_TIMEOUT_SECONDS` | | LLM 请求超时（默认 5） |
+| `LLM_MAX_TOKENS` | | LLM 输出上限（默认 512） |
 | `POLL_INTERVAL_SECONDS` | | 轮询间隔（默认 30） |
+| `POLL_BATCH_SIZE` | | 单场景单轮拉取条数（默认 20） |
+| `REVIEW_SCENES` | | 轮询场景，逗号分隔（默认 `register,note`；song/language 需 Phase 3 支持后再开） |
+| `REVIEW_COOLDOWN_SECONDS` | | REVIEW 冷却（默认 300 秒，冷却期内同一待审项不重审） |
 | `TAVILY_API_KEY` | | L3 搜索（语种低置信兜底），留空跳过 L3 |
 | `DATABASE_URL` | | 审核日志（默认 `sqlite:///./data/ai_review.db`） |
 | `LOG_LEVEL` | | 默认 INFO |

@@ -17,7 +17,13 @@ from ..voicehub_client import VoiceHubClient
 
 log = logging.getLogger("ai-gateway")
 
-SCENES = ["register", "song", "note", "language"]
+
+def get_scenes() -> list[str]:
+    """当前启用的轮询场景（每轮读取，支持运行期配置变更）。
+
+    REVIEW_SCENES 逗号分隔；song/language 需主仓 Phase 3 状态机支持后开启。
+    """
+    return [s.strip() for s in settings.review_scenes.split(",") if s.strip()] or ["register", "note"]
 
 # 各场景送审文本构造（从主仓库 payload 提取）
 def build_review_text(scene: str, payload: dict) -> str:
@@ -81,8 +87,8 @@ async def review_item(scene: str, item: dict, l1: L1RulesReviewer, l2: L2LlmRevi
 
     text = build_review_text(item_scene, payload)
 
-    # L1（注册只扫自由文本）
-    l1_result = await l1.review(build_l1_text(item_scene, payload))
+    # L1（注册只扫自由文本；scene 传参与规则的 skip_scenes 匹配）
+    l1_result = await l1.review(build_l1_text(item_scene, payload), item_scene)
     if l1_result:
         return _result(item_scene, target_id, l1_result["decision"], l1_result["reason"], 1.0, l1_result["source"], int((time.monotonic() - start) * 1000), payload)
 
@@ -111,15 +117,26 @@ def _result(scene, target_id, decision, reason, confidence, source, duration_ms,
     }
 
 
-async def poll_once(client: VoiceHubClient, l1, l2, lang) -> None:
-    """单轮：遍历各场景拉待审 → 审核 → 写回 → 记本地日志。"""
-    for scene in SCENES:
+async def poll_once(client: VoiceHubClient, l1, l2, lang, state: dict | None = None) -> None:
+    """单轮：遍历各场景拉待审 → 审核 → 写回 → 记本地日志。
+
+    state：{(scene, targetId): 最近 REVIEW 提交时刻}，冷却期内跳过重审，
+    防止 song/language 等 no-op 场景与 REVIEW 项每轮重复调 LLM。
+    """
+    if state is None:
+        state = {}
+    now = time.monotonic()
+    for scene in get_scenes():
         try:
             items = await client.fetch_pending(scene, limit=settings.poll_batch_size)
         except Exception as e:
             log.warning("拉取 %s 待审失败: %s", scene, e)
             continue
         for item in items:
+            key = (item.get("scene") or scene, item.get("id"))
+            last = state.get(key)
+            if last is not None and now - last < settings.review_cooldown_seconds:
+                continue
             try:
                 result = await review_item(scene, item, l1, l2, lang)
             except Exception as e:
@@ -149,6 +166,10 @@ async def poll_once(client: VoiceHubClient, l1, l2, lang) -> None:
                 )
             except Exception as e:
                 log.warning("写回 %s#%s 失败: %s", scene, result["targetId"], e)
+                continue
+            # 写回成功后记录 REVIEW 时刻（冷却期不重审）；写回失败不记录，下一轮重试
+            if result["decision"] == "REVIEW":
+                state[key] = time.monotonic()
 
 
 def _persist_log(result: dict) -> None:
@@ -186,10 +207,13 @@ async def run_poll_loop() -> None:
     l2 = L2LlmReviewer()
     search = L3SearchReviewer()
     lang = LanguageDetector(l2, search)
-    log.info("AI 网关轮询启动，间隔 %ss", settings.poll_interval_seconds)
+    if not settings.llm_api_key:
+        log.warning("未配置 LLM Key：仅 L1 规则生效，其余判定恒 REVIEW")
+    log.info("AI 网关轮询启动，间隔 %ss，场景 %s", settings.poll_interval_seconds, ",".join(get_scenes()))
+    state: dict = {}
     try:
         while True:
-            await poll_once(client, l1, l2, lang)
+            await poll_once(client, l1, l2, lang, state)
             await asyncio.sleep(settings.poll_interval_seconds)
     except asyncio.CancelledError:
         log.info("轮询停止")
