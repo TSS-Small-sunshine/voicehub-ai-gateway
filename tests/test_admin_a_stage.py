@@ -13,14 +13,32 @@ def gateway_db_url(monkeypatch):
     os.close(fd)
     url = f"sqlite:///{path}"
     monkeypatch.setattr("app.config.settings.gateway_database_url", url)
-    # 强制重建 gateway_engine（模块级 engine 在 import 时已绑定旧 url）
     import app.db as _db
-    from sqlalchemy.orm import sessionmaker
     from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
     new_engine = create_engine(url, connect_args={"check_same_thread": False})
     new_session = sessionmaker(bind=new_engine, autoflush=False, expire_on_commit=False)
     monkeypatch.setattr(_db, "gateway_engine", new_engine)
     monkeypatch.setattr(_db, "GatewaySession", new_session)
+    import importlib
+    for mod_name in [
+        "app.admin.auth_routes",
+        "app.admin.bootstrap",
+        "app.admin.decorators",
+        "app.admin.routes_providers",
+        "app.admin.routes_queue",
+        "app.admin.routes_rules",
+        "app.admin.routes_logs",
+        "app.admin.routes_dashboard",
+    ]:
+        try:
+            mod = importlib.import_module(mod_name)
+            monkeypatch.setattr(mod, "GatewaySession", new_session)
+        except Exception:
+            pass
+    # 重建表（在新 engine 上）
+    from app.db import Base
+    Base.metadata.create_all(bind=new_engine)
     yield url
     try:
         os.unlink(path)

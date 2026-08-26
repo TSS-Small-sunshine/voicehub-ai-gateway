@@ -12,8 +12,7 @@ from ..providers import (
     seed_default_providers,
     update_provider,
 )
-from .auth_routes import csrf_protect  # noqa: F401（保留供后续模板继承）
-from .decorators import login_required, require_role
+from .decorators import csrf_protect, login_required, require_role
 from .templates import render_request
 
 router = APIRouter(prefix="/admin/providers", tags=["admin-providers"])

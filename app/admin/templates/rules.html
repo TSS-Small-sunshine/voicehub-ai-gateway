@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}L1 规则 · 管理台{% endblock %}
+{% block content %}
+<div class="card">
+<h2>当前生效规则（内存）</h2>
+<form method="post" action="/admin/rules/reload" style="margin-bottom:10px">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<button class="btn primary" type="submit">从 DB 重新加载</button>
+</form>
+<form method="post" action="/admin/rules/seed-builtin">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<button class="btn" type="submit">同步内置模板到 DB</button>
+</form>
+<table>
+<tr><th>名称</th><th>正则</th><th>标签</th><th>skip_scenes</th></tr>
+{% for r in builtin %}
+<tr>
+<td>{{ r.name }}</td>
+<td class="muted"><code>{{ r.pattern }}</code></td>
+<td>{{ r.label }}</td>
+<td>{{ r.skip_scenes|join(',') if r.skip_scenes else '—' }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+
+<div class="card">
+<h2>命中测试</h2>
+<form method="post" action="/admin/rules/test">
+<label>正则</label><input type="text" name="pattern" placeholder="例如：1[3-9]\d{9}" required>
+<label>跳过场景（逗号分隔）</label><input type="text" name="skip_scenes" placeholder="register,note">
+<label>测试文本</label><input type="text" name="text" placeholder="例如：联系我 13812345678">
+<button class="btn primary" type="submit">测试</button>
+</form>
+<p class="muted">返回片段会出现在此卡片下方（POST 后跳转，由后端返回 HTML）。</p>
+</div>
+
+<div class="card muted">
+<h2>说明</h2>
+<p>本阶段先实现：内置规则展示 + 命中预览 + 热重载。完整规则 CRUD（含新增/删除/启停）放在下一轮（与名册管理同期）。</p>
+</div>
+{% endblock %}

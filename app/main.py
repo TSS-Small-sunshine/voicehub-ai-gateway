@@ -9,11 +9,13 @@ from fastapi.responses import JSONResponse
 from .admin.auth_routes import router as auth_router
 from .admin.bootstrap import ensure_admin
 from .admin.routes_dashboard import router as dashboard_router
+from .admin.routes_logs import router as logs_router
 from .admin.routes_providers import router as providers_router
+from .admin.routes_queue import router as queue_router
+from .admin.routes_rules import router as rules_router
 from .config import settings
-from .db import init_db
+from .db import GatewaySession, init_db
 from .providers import seed_default_providers
-from .db import GatewaySession
 from .workers.poll_pending import run_poll_loop
 
 logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
@@ -24,7 +26,6 @@ log = logging.getLogger("ai-gateway")
 async def lifespan(app: FastAPI):
     init_db()
     ensure_admin()
-    # 预置供应商（如果库为空）
     session = GatewaySession()
     try:
         seed_default_providers(session)
@@ -46,12 +47,14 @@ app = FastAPI(title="VoiceHub AI Gateway", version="0.2.0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(providers_router)
+app.include_router(queue_router)
+app.include_router(logs_router)
+app.include_router(rules_router)
 
 
 @app.get("/health")
 async def health() -> dict:
     from .providers import get_default_provider
-    from .db import GatewaySession
     session = GatewaySession()
     try:
         default_provider = get_default_provider(session)

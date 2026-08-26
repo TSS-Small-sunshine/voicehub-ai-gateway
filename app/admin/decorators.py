@@ -37,10 +37,10 @@ def require_role(*roles: str):
         async def wrapper(request: Request, *args, **kwargs):
             user = getattr(request.state, "user", None)
             if not user:
-                raise HTTPException(status_code=401, "未登录")
+                raise HTTPException(status_code=401, detail="未登录")
             if user.role == "admin" or user.role in allowed:
                 return await fn(request, *args, **kwargs)
-            raise HTTPException(status_code=403, "无权限")
+            raise HTTPException(status_code=403, detail="无权限")
         return wrapper
     return deco
 
@@ -49,11 +49,11 @@ async def csrf_protect(request: Request) -> None:
     """依赖：校验表单 CSRF。"""
     gw_session = getattr(request.state, "gw_session", None)
     if not gw_session:
-        raise HTTPException(status_code=401, "未登录")
+        raise HTTPException(status_code=401, detail="未登录")
     form = await request.form()
     submitted = form.get("_csrf", "")
     if not submitted:
-        raise HTTPException(status_code=400, "缺少 CSRF 令牌")
+        raise HTTPException(status_code=400, detail="缺少 CSRF 令牌")
     from ..auth import csrf_check
     if not csrf_check(gw_session.csrf_token, submitted):
-        raise HTTPException(status_code=400, "CSRF 令牌无效或已过期")
+        raise HTTPException(status_code=400, detail="CSRF 令牌无效或已过期")

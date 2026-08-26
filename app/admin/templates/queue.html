@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}待审队列 · 管理台{% endblock %}
+{% block content %}
+<div class="card">
+<h2>场景切换</h2>
+{% for s in scenes %}
+{% if s == current_scene %}
+<span class="tag ok">{{ s }}</span>
+{% else %}
+<a class="btn" href="/admin/queue?scene={{ s }}">{{ s }}</a>
+{% endif %}
+{% endfor %}
+<p class="muted">缓存 10 分钟自动刷新；人工写回后立即清除本场景缓存。</p>
+</div>
+
+{% if user.role in ['reviewer', 'admin'] %}
+{% for it in items %}
+<div class="card">
+<h2>#{{ it.id }} · {{ it.scene }}</h2>
+<table>
+{% for k, v in it.payload.items() %}
+<tr><th>{{ k }}</th><td>{{ v }}</td></tr>
+{% endfor %}
+<tr><th class="muted">创建时间</th><td class="muted">{{ it.created_at }}</td></tr>
+</table>
+<form method="post" action="/admin/queue/action" style="margin-top:10px">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<input type="hidden" name="scene" value="{{ it.scene }}">
+<input type="hidden" name="target_id" value="{{ it.id }}">
+<label>复核理由（可选）</label>
+<input type="text" name="reason" placeholder="备注给后续审阅者">
+<button class="btn" name="decision" value="APPROVE" type="submit">通过</button>
+<button class="btn" name="decision" value="REJECT" type="submit">拒绝</button>
+<button class="btn" name="decision" value="REVIEW" type="submit">转人工</button>
+</form>
+</div>
+{% endfor %}
+{% if not items %}<div class="card muted">当前场景无待审项</div>{% endif %}
+{% else %}
+<div class="card muted">仅 reviewer/admin 可查看原文与执行复核</div>
+{% endif %}
+{% endblock %}

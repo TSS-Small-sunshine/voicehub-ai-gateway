@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}审核日志 · 管理台{% endblock %}
+{% block content %}
+<div class="card">
+<h2>检索</h2>
+<form method="get" action="/admin/logs">
+<div class="row">
+<div><label>场景</label>
+<select name="scene">
+{% for s in scenes %}<option value="{{ s }}" {% if scene_f == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+</select></div>
+<div><label>判定</label>
+<select name="decision">
+{% for d in decisions %}<option value="{{ d }}" {% if decision_f == d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+</select></div>
+</div>
+<label>条数</label><input type="number" name="limit" value="50" min="1" max="500">
+<button class="btn primary" type="submit">查询</button>
+<a class="btn" href="/admin/logs/export">导出 CSV</a>
+<p class="muted">{% if not show_raw %}当前以 viewer 视图显示（payload 已脱敏）{% endif %}</p>
+</form>
+</div>
+
+<div class="card">
+<h2>结果（{{ items|length }} 条）</h2>
+<table>
+<tr><th>ID</th><th>时间</th><th>场景</th><th>对象</th><th>判定</th><th>来源</th><th>模型</th><th>耗时</th><th>理由</th><th>payload</th></tr>
+{% for it in items %}
+<tr>
+<td>{{ it.id }}</td>
+<td class="muted">{{ it.created_at[:19] }}</td>
+<td>{{ it.scene }}</td>
+<td>{{ it.target_id }}</td>
+<td><span class="tag {{ it.decision|lower }}">{{ it.decision }}</span></td>
+<td>{{ it.source }}</td>
+<td>{{ it.model }}</td>
+<td>{{ it.duration_ms }}ms</td>
+<td>{{ it.reason }}</td>
+<td class="muted">{{ it.payload_json }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

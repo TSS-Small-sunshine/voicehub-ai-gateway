@@ -8,8 +8,6 @@ from sqlalchemy.orm import Session
 
 from .db import GwSession, GwUser
 from .security import (
-    csrf_sign,
-    csrf_verify,
     hash_password,
     new_token,
     needs_rehash,
@@ -119,11 +117,12 @@ def change_password(session: Session, user: GwUser, new_password: str) -> None:
 
 
 def csrf_check(session_token_csrf: str, form_csrf: str) -> bool:
-    """校验表单提交的 CSRF 与会话中的 csrf 一致（且签名未过期）。"""
-    raw = csrf_verify(session_token_csrf)
-    if raw is None:
-        return False
-    return secrets_compare(raw, form_csrf)
+    """双提交模式：表单 _csrf 与会话行存储值一致即通过（常量时间比较）。
+
+    create_session 生成的原始随机串入库，模板原样注入表单隐藏域；
+    有状态会话下无需 itsdangerous 二次签名。
+    """
+    return secrets_compare(session_token_csrf, form_csrf)
 
 
 def secrets_compare(a: str, b: str) -> bool:

@@ -38,6 +38,9 @@ input[type=text],input[type=password],input[type=number],textarea,select{padding
 <header>
 <div>
 <a href="/admin/">📊 看板</a>
+<a href="/admin/queue?scene=register">📥 待审队列</a>
+<a href="/admin/logs">📋 审核日志</a>
+{% if user.role in ['reviewer', 'admin'] %}<a href="/admin/rules">🛡️ L1 规则</a>{% endif %}
 {% if user.role == 'admin' %}<a href="/admin/providers/">🧠 供应商</a>{% endif %}
 <a href="/admin/logout/" style="margin-left:auto">登出</a>
 </div>
