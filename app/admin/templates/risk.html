@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}注册风控 · 管理台{% endblock %}
+{% block content %}
+<div class="card">
+<h2>注册通道状态：{% if frozen %}<span class="tag reject">已冻结（轮询跳过 register）</span>{% else %}<span class="tag ok">正常</span>{% endif %}</h2>
+<form method="post" action="/admin/risk/freeze">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<input type="hidden" name="freeze" value="{{ '' if frozen else 'true' }}">
+{% if frozen %}
+<button class="btn primary" type="submit">解除冻结</button>
+{% else %}
+<button class="btn danger" type="submit" onclick="return confirm('确认冻结注册通道？冻结后网关跳过 register 场景的自动审核。')">🚨 冻结注册通道</button>
+{% endif %}
+<span class="muted">异常爆发时的一键止血开关；操作留审计。</span>
+</form>
+</div>
+
+<div class="card">
+<h2>判定占比（近 {{ total_window }} 条 register / 库内共 {{ total_all }} 条）</h2>
+<table>
+<tr><th>APPROVE</th><th>REVIEW</th><th>REJECT</th></tr>
+<tr>
+<td>{{ approve }}（{{ approve_pct }}）</td>
+<td>{{ review }}（{{ review_pct }}）<span class="tag review">转人工</span></td>
+<td>{{ reject }}（{{ reject_pct }}）<span class="tag reject">拒绝</span></td>
+</tr>
+</table>
+<p class="muted">同 IP / UA 聚合需主仓侧数据（网关日志不含 IP），列入二期。</p>
+</div>
+
+<div class="card">
+<h2>相似备注模板聚类（归一化后出现 ≥3 次）</h2>
+<table>
+<tr><th>出现次数</th><th>归一化键</th><th>样例</th></tr>
+{% for c in clusters %}
+<tr>
+<td><strong>{{ c.count }}</strong></td>
+<td><code>{{ c.key }}</code></td>
+<td class="muted">{{ c.sample }}</td>
+</tr>
+{% else %}
+<tr><td colspan="3" class="muted">未发现重复模板。</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

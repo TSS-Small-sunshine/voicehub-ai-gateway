@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}定期抽查 · 管理台{% endblock %}
+{% block content %}
+{% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+{% if err %}<div class="flash error">{{ err }}</div>{% endif %}
+
+<div class="card">
+<h2>抽查配置</h2>
+<p>
+状态：{% if enabled %}<span class="tag ok">已启用</span>{% else %}<span class="tag review">未启用</span>{% endif %}
+· 间隔 {{ interval_hours }} 小时 · 每批 {{ batch }} 条
+{% if user.role == 'admin' %}
+<form method="post" action="/admin/spotcheck/run" style="display:inline;margin-left:12px">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<button class="btn" type="submit">立即抽检一批（≤10 条）</button>
+</form>
+（周期/批量在 <a href="/admin/settings">设置页</a> 调整）
+{% endif %}
+</p>
+<p class="muted">抽样范围：register/note 已判定通过的记录；复审 REJECT 仅标记「待人工复核」，绝不自动写回主仓。</p>
+</div>
+
+<div class="card">
+<h2>抽查记录（最新 100 条）</h2>
+<table>
+<tr><th>ID</th><th>场景</th><th>对象</th><th>原判定</th><th>复审判定</th><th>置信度</th><th>来源模型</th><th>原因</th><th>时间</th></tr>
+{% for it in items %}
+<tr {% if it.needs_human %}style="background:#fef2f2"{% endif %}>
+<td>{{ it.id }}</td>
+<td>{{ it.scene }}</td>
+<td>#{{ it.target_id }}</td>
+<td><span class="tag ok">{{ it.original }}</span></td>
+<td><span class="tag {{ 'reject' if it.needs_human else 'ok' }}">{{ it.recheck }}</span>{% if it.needs_human %} ⚠️待人工复核{% endif %}</td>
+<td>{{ it.confidence }}</td>
+<td>{{ it.model }}</td>
+<td class="muted">{{ it.reason }}</td>
+<td class="muted">{{ it.created_at[:16] }}</td>
+</tr>
+{% else %}
+<tr><td colspan="9" class="muted">暂无抽查记录。</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

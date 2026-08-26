@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}运行期设置 · 管理台{% endblock %}
+{% block content %}
+{% if saved %}<div class="flash">已保存。轮询等后台任务每周期重读，保存即热生效，无需重启。</div>{% endif %}
+<form method="post" action="/admin/settings/save">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+{% for group_name, items in groups %}
+<div class="card">
+<h2>{{ group_name }}</h2>
+<table>
+<tr><th style="width:45%">配置项</th><th>当前值</th><th>来源</th></tr>
+{% for key, label in items %}
+<tr>
+<td>{{ label }}<div class="muted"><code>{{ key }}</code></div></td>
+<td>
+{% if key in ['l3_enabled', 'spotcheck_enabled', 'register_channel_frozen'] %}
+<input type="checkbox" name="{{ key }}" {% if values[key] == 'true' %}checked{% endif %} style="width:auto">
+{% elif key == 'review_scenes' %}
+<input type="text" name="{{ key }}" value="{{ values[key] }}" placeholder="register,note">
+{% elif key == 'language_whitelist' %}
+<input type="text" name="{{ key }}" value="{{ values[key] }}" placeholder="中文,英文（留空=不限）">
+{% else %}
+<input type="number" step="any" name="{{ key }}" value="{{ values[key] }}">
+{% endif %}
+</td>
+<td>
+{% if sources[key] == 'db' %}<span class="tag ok">DB</span>
+{% elif sources[key] == 'env' %}<span class="tag review">env</span>
+{% else %}<span class="muted">默认</span>{% endif %}
+</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+{% endfor %}
+<button class="btn primary" type="submit">保存全部并热生效</button>
+</form>
+<p class="muted">优先级：DB &gt; 环境变量 &gt; 内置默认。「来源=DB」的项可用清空该输入框恢复上级取值（布尔开关始终显式存储）。</p>
+{% endblock %}

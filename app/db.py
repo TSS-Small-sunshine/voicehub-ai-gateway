@@ -159,12 +159,32 @@ def _gateway_url() -> str:
 
 def _engine_args(url: str) -> dict:
     if url.startswith("sqlite"):
-        return {"connect_args": {"check_same_thread": False}}
+        # timeout=busy_timeout(ms*1000)：并发写时等待持锁方释放而非立即抛 locked
+        return {"connect_args": {"check_same_thread": False, "timeout": 30}}
     return {}
 
 
-gateway_engine = create_engine(_gateway_url(), **_engine_args(_gateway_url()))
-review_engine = create_engine(_review_url(), **_engine_args(_review_url()))
+def _sqlite_connect_pragmas(dbapi_conn, _record) -> None:
+    """每连接 PRAGMA：WAL 降低读写互斥；NORMAL 同步足够（掉电最多丢最后事务）。"""
+    cur = dbapi_conn.cursor()
+    try:
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cur.close()
+
+
+def make_engine(url: str):
+    """统一引擎构造（含 SQLite WAL/busy_timeout 加固）；测试与压测共用同一路径。"""
+    engine = create_engine(url, **_engine_args(url))
+    if url.startswith("sqlite"):
+        from sqlalchemy import event
+        event.listen(engine, "connect", _sqlite_connect_pragmas)
+    return engine
+
+
+gateway_engine = make_engine(_gateway_url())
+review_engine = make_engine(_review_url())
 
 ReviewSession = sessionmaker(bind=review_engine, autoflush=False, expire_on_commit=False)
 

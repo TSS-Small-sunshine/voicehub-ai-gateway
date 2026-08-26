@@ -57,17 +57,17 @@ spec: docs/compose/specs/2026-08-26-web-admin-design.md
 
 ## C 阶段：完善交付（抽查+设置+归档+容错+压测）
 
-- [ ] C1: `app/settings.py`：gw_settings DB>env>默认优先级，热生效（worker 重读）
-- [ ] C2: `app/admin/routes_settings.py`：场景/轮询/批大小/冷却/置信阈值/L3/语种白名单设置页
-- [ ] C3: `app/admin/routes_roster.py`：名册 CSV 导入（类型/大小≤5MB/UTF-8/列头/重复学号校验、预览确认），学号 HMAC 存储，姓名明文仅 admin 可见
-- [ ] C4: `app/admin/routes_spotcheck.py`：抽查配置页 + 列表页（结果/不一致标记人工）
-- [ ] C5: `app/workers/spotcheck.py`：周期抽样任务（已判定通过记录复审入 gw_spotcheck_logs，不一致仅标记人工）
-- [ ] C6: `app/workers/archive.py`：本地归档（周期快照 ai_review.db/gateway.db 至 data/archive/，保留 N 份）
-- [ ] C7: `app/admin/routes_risk.py`：注册风控视图（被拒/REVIEW 占比、IP/UA 聚合、备注模板聚类、通道冻结开关）
-- [ ] C8: `app/workers/cleanup.py`：日志保留期清理任务
-- [ ] C9: `app/admin/templates/settings.html`/`roster.html`/`spotcheck.html`/`risk.html`
-- [ ] C10: pytest：C1-C9（设置优先级/HMAC/CSV 校验/抽查/保留期），目标 ≥25 用例
-- [ ] C11: T-C8 压测（test_perf.py）：并发读 + 日志批量写入，给出 DB 选型结论写入 docs/compose/plans/perf-result.md
+- [x] C1: `app/settings.py`：gw_settings DB>env>默认优先级，热生效（worker 重读）
+- [x] C2: `app/admin/routes_settings.py`：场景/轮询/批大小/冷却/置信阈值/L3/语种白名单设置页
+- [x] C3: `app/admin/routes_roster.py`：名册 CSV 导入（类型/大小≤5MB/UTF-8/列头/重复学号校验、预览确认），学号 HMAC 存储，姓名明文仅 admin 可见
+- [x] C4: `app/admin/routes_spotcheck.py`：抽查配置页 + 列表页（结果/不一致标记人工）
+- [x] C5: `app/workers/spotcheck.py`：周期抽样任务（已判定通过记录复审入 gw_spotcheck_logs，不一致仅标记人工）
+- [x] C6: `app/workers/archive.py`：本地归档（周期快照 ai_review.db/gateway.db 至 data/archive/，保留 N 份）
+- [x] C7: `app/admin/routes_risk.py`：注册风控视图（被拒/REVIEW 占比、备注模板聚类、通道冻结开关；同 IP/UA 聚合需主仓数据标注二期）
+- [x] C8: `app/workers/cleanup.py`：日志保留期清理任务
+- [x] C9: `app/admin/templates/settings.html`/`roster.html`/`spotcheck.html`/`risk.html`
+- [x] C10: pytest：C1-C9（设置优先级/HMAC/CSV 校验/抽查/保留期）31 用例全绿
+- [x] C11: T-C8 压测（test_perf.py）：并发读 + 日志批量写入，结论写入 docs/compose/plans/perf-result.md（SQLite+WAL+busy_timeout 满足规模基线；另修复 CSRF 双提交生产缺陷与名册比对链路 B→C 带入）
 
 验证：
 

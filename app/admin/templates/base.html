@@ -41,7 +41,7 @@ input[type=text],input[type=password],input[type=number],textarea,select{padding
 <a href="/admin/queue?scene=register">📥 待审队列</a>
 <a href="/admin/logs">📋 审核日志</a>
 {% if user.role in ['reviewer', 'admin'] %}<a href="/admin/rules">🛡️ L1 规则</a>{% endif %}
-{% if user.role == 'admin' %}<a href="/admin/providers/">🧠 供应商</a>{% endif %}
+{% if user.role == 'admin' %}<a href="/admin/providers/">🧠 供应商</a><a href="/admin/roster">🎓 名册</a><a href="/admin/spotcheck">🔍 抽查</a><a href="/admin/risk">🚨 风控</a><a href="/admin/settings">⚙️ 设置</a>{% endif %}
 <a href="/admin/logout/" style="margin-left:auto">登出</a>
 </div>
 <div class="user">{{ user.username }}（{{ user.role }}） · <a href="/admin/change-password/" style="color:#fff">改密</a></div>

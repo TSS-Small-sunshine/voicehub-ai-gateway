@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}名册管理 · 管理台{% endblock %}
+{% block content %}
+{% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+{% if err %}<div class="flash error">{{ err }}</div>{% endif %}
+
+<div class="card">
+<h2>导入名册 CSV（预览确认后落库）</h2>
+<form method="post" action="/admin/roster/preview" enctype="multipart/form-data">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<input type="file" name="file" accept=".csv,text/csv" required style="width:auto">
+<button class="btn primary" type="submit">上传并预览</button>
+<span class="muted">≤5MB · UTF-8 · 列头：学号,姓名[,年级,班级] · 当前共 {{ total }} 条</span>
+</form>
+<p class="muted">学号以 HMAC-SHA256 存储（不落明文）；重导幂等覆盖（同学号更新姓名/班级）。每次导入均留审计。</p>
+</div>
+
+{% if preview_rows is defined and preview_rows %}
+<div class="card">
+<h2>预览确认：共解析 {{ preview_total }} 行（示例前 {{ preview_rows|length }} 行）</h2>
+<table>
+<tr><th>学号</th><th>姓名</th><th>年级</th><th>班级</th></tr>
+{% for r in preview_rows %}
+<tr><td><code>{{ r.student_no }}</code></td><td>{{ r.name }}</td><td>{{ r.grade or '—' }}</td><td>{{ r['class'] or '—' }}</td></tr>
+{% endfor %}
+</table>
+<form method="post" action="/admin/roster/import" style="margin-top:10px">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<input type="hidden" name="data_b64" value="{{ data_b64 }}">
+<button class="btn primary" type="submit">确认导入全部 {{ preview_total }} 行</button>
+<a class="btn" href="/admin/roster">取消</a>
+</form>
+</div>
+{% endif %}
+
+<div class="card">
+<h2>已入库条目（最新 200 / 共 {{ total }}）</h2>
+<table>
+<tr><th>学号指纹</th><th>姓名</th><th>年级</th><th>班级</th><th>导入人</th></tr>
+{% for e in entries %}
+<tr>
+<td class="muted"><code>{{ e.student_no_hmac[:16] }}…</code></td>
+<td>{{ e.name }}</td>
+<td>{{ e.grade or '—' }}</td>
+<td>{{ e.class_ or '—' }}</td>
+<td>{{ e.imported_by or '—' }}</td>
+</tr>
+{% else %}
+<tr><td colspan="5" class="muted">暂无数据。注册备注比对在名册为空时不干预。</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

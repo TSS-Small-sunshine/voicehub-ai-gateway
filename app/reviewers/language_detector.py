@@ -18,9 +18,9 @@ ALLOWED_LANGUAGES: list[str] = ["中文", "英文", "日文", "韩文", "粤语"
 class LanguageDetector:
     """三级语种判定。"""
 
-    def __init__(self, llm: L2LlmReviewer, search: L3SearchReviewer) -> None:
+    def __init__(self, llm: L2LlmReviewer, search: L3SearchReviewer | None) -> None:
         self._llm = llm
-        self._search = search
+        self._search = search  # None = 运行期关闭 L3（管理台设置 l3_enabled）
 
     async def detect(
         self,
@@ -58,6 +58,8 @@ class LanguageDetector:
             return 0.0
 
     async def _search_fallback(self, title: str, artist: str) -> dict | None:
+        if self._search is None:
+            return None
         summaries = await self._search.search(f"{title} {artist} 歌曲 语言")
         blob = " ".join(summaries)
         for guess in ALLOWED_LANGUAGES:
