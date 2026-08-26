@@ -1,0 +1,11 @@
+services:
+  ai-gateway:
+    build: .
+    container_name: voicehub-ai-gateway
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

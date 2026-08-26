@@ -1,0 +1,4 @@
+[
+  {"name": "campus_ads", "pattern": "（家教|补习|代面试|社团拉新|二手出售）", "label": "校园广告"},
+  {"name": "exam_leak", "pattern": "（答案|考前真题）", "label": "涉考违规"}
+]
