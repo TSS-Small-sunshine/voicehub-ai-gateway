@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}VoiceHub AI 审核网关 · 管理台{% endblock %}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--line:#e2e8f0;--text:#1f2937;--muted:#64748b;--primary:#1f3a5f;--danger:#c0392b;--ok:#16a34a;--warn:#d97706}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 -apple-system,Segoe UI,Microsoft YaHei,Arial,sans-serif;color:var(--text);background:var(--bg)}
+header{background:var(--primary);color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center}
+header a{color:#fff;text-decoration:none;margin-right:16px;font-weight:500}
+header .user{font-size:13px;opacity:.85}
+main{padding:24px;max-width:1200px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px;margin-bottom:16px}
+.card h2{margin:0 0 12px;font-size:16px;color:var(--primary)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+th{background:#f1f5f9;font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase}
+.muted{color:var(--muted);font-size:12px}
+.btn{display:inline-block;padding:6px 12px;border-radius:4px;border:1px solid var(--line);background:#fff;color:var(--text);text-decoration:none;font-size:13px;cursor:pointer}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.danger{color:var(--danger);border-color:var(--danger);background:#fff}
+.btn:hover{opacity:.9}
+form.inline{display:inline}
+input[type=text],input[type=password],input[type=number],textarea,select{padding:6px 8px;border:1px solid var(--line);border-radius:4px;font:inherit;width:100%}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.row label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.flash{padding:10px 14px;border-radius:6px;background:#fffbe6;border:1px solid #fde68a;margin-bottom:14px;font-size:13px}
+.flash.error{background:#fee2e2;border-color:#fecaca;color:#991b1b}
+.tag{display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600}
+.tag.ok{background:#dcfce7;color:#166534}
+.tag.review{background:#fef3c7;color:#92400e}
+.tag.reject{background:#fee2e2;color:#991b1b}
+</style>
+</head>
+<body>
+<header>
+<div>
+<a href="/admin/">📊 看板</a>
+{% if user.role == 'admin' %}<a href="/admin/providers/">🧠 供应商</a>{% endif %}
+<a href="/admin/logout/" style="margin-left:auto">登出</a>
+</div>
+<div class="user">{{ user.username }}（{{ user.role }}） · <a href="/admin/change-password/" style="color:#fff">改密</a></div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

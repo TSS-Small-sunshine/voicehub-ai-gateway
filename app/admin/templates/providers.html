@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}供应商 · 管理台{% endblock %}
+{% block content %}
+{% if message %}<div class="flash">{{ message }}</div>{% endif %}
+
+<div class="card">
+<h2>现有供应商</h2>
+<table>
+<tr><th>名称</th><th>模型</th><th>Base URL</th><th>Key</th><th>优先级</th><th>状态</th><th>超时</th><th>操作</th></tr>
+{% for p in providers %}
+<tr>
+<td>{{ p.name }} {% if p.is_builtin %}<span class="tag ok">内置</span>{% endif %}</td>
+<td class="muted">{{ p.model }}</td>
+<td class="muted">{{ p.base_url }}</td>
+<td>{% if p.has_key %}<span class="muted">{{ p.key_preview }}</span>{% else %}<span class="muted">未配置</span>{% endif %}</td>
+<td>{{ p.priority }}</td>
+<td>{% if p.enabled %}<span class="tag ok">启用</span>{% else %}<span class="tag review">未启</span>{% endif %}</td>
+<td>{{ p.timeout_seconds }}s</td>
+<td>
+<details>
+<summary class="btn">编辑</summary>
+<form method="post" action="/admin/providers/{{ p.id }}/update" style="margin-top:8px">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<label>base_url</label><input type="text" name="base_url" value="{{ p.base_url }}">
+<label>model</label><input type="text" name="model" value="{{ p.model }}">
+<label>api_key（留空不修改）</label><input type="text" name="api_key" value="">
+<div class="row">
+<div><label>priority</label><input type="number" name="priority" value="{{ p.priority }}"></div>
+<div><label>timeout</label><input type="number" name="timeout_seconds" value="{{ p.timeout_seconds }}" step="0.5"></div>
+</div>
+<div class="row">
+<div><label>max_tokens</label><input type="number" name="max_tokens" value="{{ p.max_tokens }}"></div>
+<div><label>启用</label><label style="margin-top:6px"><input type="checkbox" name="enabled" {% if p.enabled %}checked{% endif %}> 已启用</label></div>
+</div>
+<label>备注</label><input type="text" name="note" value="{{ p.note }}">
+<button class="btn primary" type="submit">保存</button>
+</form>
+{% if not p.is_builtin %}
+<form class="inline" method="post" action="/admin/providers/{{ p.id }}/delete" onsubmit="return confirm('删除？')">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<button class="btn danger" type="submit">删除</button>
+</form>
+{% endif %}
+</details>
+</td>
+</tr>
+{% endfor %}
+</table>
+<p class="muted">说明：优先级数字越小越优先；未启用供应商不会被使用；主供应商熔断时按优先级次序切换备用。</p>
+</div>
+
+<div class="card">
+<h2>新增供应商</h2>
+<form method="post" action="/admin/providers/create">
+<input type="hidden" name="_csrf" value="{{ request.state.gw_session.csrf_token }}">
+<div class="row">
+<div><label>名称</label><input type="text" name="name" required></div>
+<div><label>模型</label><input type="text" name="model" required></div>
+</div>
+<label>Base URL</label><input type="text" name="base_url" required>
+<label>API Key（填入即启用）</label><input type="text" name="api_key">
+<div class="row">
+<div><label>优先级</label><input type="number" name="priority" value="100"></div>
+<div><label>超时（秒）</label><input type="number" name="timeout_seconds" value="5" step="0.5"></div>
+</div>
+<div class="row">
+<div><label>max_tokens</label><input type="number" name="max_tokens" value="512"></div>
+<div><label>备注</label><input type="text" name="note"></div>
+</div>
+<button class="btn primary" type="submit">创建</button>
+</form>
+<h3 style="margin-top:20px">预设模板（点击填入）</h3>
+<table>
+<tr><th>名称</th><th>base_url</th><th>model</th><th></th></tr>
+{% for tpl in provider_templates %}
+<tr>
+<td>{{ tpl.name }}</td>
+<td class="muted">{{ tpl.base_url }}</td>
+<td class="muted">{{ tpl.model }}</td>
+<td><form class="inline" method="get" action="/admin/providers/"><button class="btn" type="submit">参考</button></form></td>
+</tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

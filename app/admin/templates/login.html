@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>登录 · VoiceHub AI 审核网关</title>
+<style>
+body{margin:0;font:14px -apple-system,Segoe UI,Microsoft YaHei,Arial,sans-serif;background:linear-gradient(135deg,#1f3a5f,#2c5282);height:100vh;display:flex;align-items:center;justify-content:center;color:#1f2937}
+.box{background:#fff;padding:32px;border-radius:10px;width:340px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+h1{margin:0 0 18px;font-size:18px;text-align:center;color:#1f3a5f}
+label{display:block;font-size:12px;color:#64748b;margin:10px 0 4px}
+input{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:4px;box-sizing:border-box;font:inherit}
+button{width:100%;margin-top:18px;padding:10px;background:#1f3a5f;color:#fff;border:none;border-radius:4px;font-size:14px;cursor:pointer}
+.error{background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:4px;margin-bottom:14px;font-size:13px}
+</style>
+</head>
+<body>
+<form class="box" method="post" action="/admin/login">
+<h1>🛡️ VoiceHub AI 审核网关</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<label>账号</label>
+<input type="text" name="username" value="{{ username }}" autofocus required>
+<label>密码</label>
+<input type="password" name="password" required>
+<button type="submit">登录</button>
+</form>
+</body>
+</html>

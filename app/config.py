@@ -29,6 +29,16 @@ class Settings(BaseSettings):
 
     # 数据库（审核日志）
     database_url: str = "sqlite:///./data/ai_review.db"
+    # 管理台独立库（默认与审核日志同库；切 PostgreSQL 时分别配置即可）
+    gateway_database_url: str = ""
+
+    # 管理台初始化（首启）
+    admin_init_user: str = ""
+    admin_init_pass: str = ""
+
+    # 加密根密钥（Fernet + HMAC 共享；未配置时供应商 Key 仅允许 env 注入）
+    # 生成：openssl rand -hex 32 → 转 base64 后填入；32 字节 → base64 长度 44
+    admin_secret: str = ""
 
     # 日志
     log_level: str = "INFO"
