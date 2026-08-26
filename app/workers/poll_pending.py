@@ -29,11 +29,21 @@ def build_review_text(scene: str, payload: dict) -> str:
         )
     if scene == "song":
         return f"标题：{p.get('title','')}\n歌手：{p.get('artist','')}\n备注：{p.get('remark','')}"
-    if scene == "note":
+    if scene == "note" or scene == "replay_note":
         return f"留言：{p.get('text','')}"
     if scene == "language":
         return f"标题：{p.get('title','')}\n歌手：{p.get('artist','')}"
     return ""
+
+
+# L1 只扫自由文本（注册场景不含下拉选择的年级/班级，防年份类数字误伤规则）
+def build_l1_text(scene: str, payload: dict) -> str:
+    p = payload or {}
+    if scene == "register":
+        return (
+            f"用户名：{p.get('username','')}\n姓名：{p.get('name','')}\n备注：{p.get('remark','')}"
+        )
+    return build_review_text(scene, payload)
 
 
 def build_system_prompt(scene: str) -> str:
@@ -41,18 +51,23 @@ def build_system_prompt(scene: str) -> str:
         return REGISTER_SYSTEM_PROMPT
     if scene == "song":
         return SONG_SYSTEM_PROMPT
-    if scene == "note":
+    if scene in ("note", "replay_note"):
         return NOTE_SYSTEM_PROMPT
     return ""
 
 
 async def review_item(scene: str, item: dict, l1: L1RulesReviewer, l2: L2LlmReviewer, lang: LanguageDetector) -> dict:
-    """单条审核：返回写回结果。"""
+    """单条审核：返回写回结果。
+
+    scene 以主仓 pending-list 在 item 上的标注为准（note 池内的重播申请标注为
+    replay_note，写回须走对应分支）。
+    """
     target_id = item.get("id")
     payload = item.get("payload") or {}
+    item_scene = item.get("scene") or scene
     start = time.monotonic()
 
-    if scene == "language":
+    if item_scene == "language":
         # 语种专用：平台元数据 → LLM → 搜索
         result = await lang.detect(
             title=str(payload.get("title", "")),
@@ -61,20 +76,20 @@ async def review_item(scene: str, item: dict, l1: L1RulesReviewer, l2: L2LlmRevi
         )
         duration_ms = int((time.monotonic() - start) * 1000)
         if not result.get("language"):
-            return _result(scene, target_id, "REVIEW", "无法识别语种，转人工", None, result.get("source"), duration_ms, payload)
-        return _result(scene, target_id, "APPROVE", f"语种：{result['language']}", result.get("confidence"), result.get("source"), duration_ms, payload)
+            return _result(item_scene, target_id, "REVIEW", "无法识别语种，转人工", None, result.get("source"), duration_ms, payload)
+        return _result(item_scene, target_id, "APPROVE", f"语种：{result['language']}", result.get("confidence"), result.get("source"), duration_ms, payload)
 
-    text = build_review_text(scene, payload)
+    text = build_review_text(item_scene, payload)
 
-    # L1
-    l1_result = await l1.review(text)
+    # L1（注册只扫自由文本）
+    l1_result = await l1.review(build_l1_text(item_scene, payload))
     if l1_result:
-        return _result(scene, target_id, l1_result["decision"], l1_result["reason"], 1.0, l1_result["source"], int((time.monotonic() - start) * 1000), payload)
+        return _result(item_scene, target_id, l1_result["decision"], l1_result["reason"], 1.0, l1_result["source"], int((time.monotonic() - start) * 1000), payload)
 
     # L2（注册场景带专用 prompt）
-    result = await l2.review(build_system_prompt(scene), text)
+    result = await l2.review(build_system_prompt(item_scene), text)
     duration_ms = int((time.monotonic() - start) * 1000)
-    return _result(scene, target_id, result["decision"], result["reason"], result.get("confidence"), result.get("source"), duration_ms, payload)
+    return _result(item_scene, target_id, result["decision"], result["reason"], result.get("confidence"), result.get("source"), duration_ms, payload)
 
 
 def cfg_platform_language(payload: dict) -> str | None:
@@ -105,7 +120,21 @@ async def poll_once(client: VoiceHubClient, l1, l2, lang) -> None:
             log.warning("拉取 %s 待审失败: %s", scene, e)
             continue
         for item in items:
-            result = await review_item(scene, item, l1, l2, lang)
+            try:
+                result = await review_item(scene, item, l1, l2, lang)
+            except Exception as e:
+                # 单条异常降级 REVIEW 转人工，绝不中断整轮轮询
+                log.warning("审核 %s#%s 异常，降级 REVIEW: %s", scene, item.get("id"), e)
+                result = {
+                    "scene": item.get("scene") or scene,
+                    "targetId": item.get("id"),
+                    "decision": "REVIEW",
+                    "reason": f"审核异常（{type(e).__name__}），转人工",
+                    "confidence": None,
+                    "source": "degraded",
+                    "durationMs": 0,
+                    "payloadJson": json.dumps(item.get("payload") or {}, ensure_ascii=False),
+                }
             _persist_log(result)
             try:
                 await client.submit_result(

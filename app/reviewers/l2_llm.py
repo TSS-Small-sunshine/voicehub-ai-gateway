@@ -29,13 +29,18 @@ class L2LlmReviewer:
     """LLM 审查：返回 {decision, reason, confidence, source:'l2_llm', model}，异常降级 REVIEW。"""
 
     def __init__(self) -> None:
-        self._client = AsyncOpenAI(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
-            timeout=settings.llm_timeout_seconds,
-        )
+        # 未配置 LLM Key 时客户端为空：调用直接返回 None → 上层降级 REVIEW，不阻塞启动
+        self._client = None
+        if settings.llm_api_key:
+            self._client = AsyncOpenAI(
+                api_key=settings.llm_api_key,
+                base_url=settings.llm_base_url,
+                timeout=settings.llm_timeout_seconds,
+            )
 
     async def _call_json(self, system_prompt: str, user_text: str) -> dict | None:
+        if not self._client:
+            return None
         resp = await self._client.chat.completions.create(
             model=settings.llm_model,
             messages=build_messages(system_prompt, user_text),
@@ -49,6 +54,16 @@ class L2LlmReviewer:
         try:
             return json.loads(content)
         except json.JSONDecodeError:
+            return None
+
+    async def complete_json(self, system_prompt: str, user_text: str) -> dict | None:
+        """schema 无关的 JSON 补全；调用/解析失败返回 None（不抛异常）。
+
+        供语种检测等自定义 JSON 结构使用（decision 结构的场景走 review()）。
+        """
+        try:
+            return await self._call_json(system_prompt, user_text)
+        except Exception:
             return None
 
     async def review(self, system_prompt: str, user_text: str) -> dict:

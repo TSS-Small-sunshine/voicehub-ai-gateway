@@ -67,6 +67,12 @@ cp .env.example .env
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+### 测试（离线）
+
+```bash
+.venv\Scripts\python -m pytest -q   # Windows；全部用例离线运行（fake LLM/搜索），不触网
+```
+
 ---
 
 ## 环境变量
@@ -122,7 +128,7 @@ voicehub-ai-gateway/
 
 ## 安全合规
 
-- **学生信息脱敏**：送 LLM 前替换姓名/电话/QQ/学校为占位符
+- **学生信息脱敏**：送 LLM 前替换姓名/电话/QQ/学校为占位符（Phase 2 落地，当前直接透传）
 - **Prompt 注入**：用户内容当数据，系统提示固化"只输出 JSON"
 - **审计**：所有 decision / model / durationMs / dataSource 入库可追踪
 
